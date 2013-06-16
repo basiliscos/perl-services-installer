@@ -1,0 +1,59 @@
+use 5.10.0;
+use strict;
+use warnings;
+
+use Getopt::Long qw(GetOptions :config no_auto_abbrev no_ignore_case);
+use Path::Class qw/file/;
+use Win32::Daemon; 
+
+my ($service_script, $service_name, $service_label, $description);
+
+GetOptions(
+    's|service_script=s'   => \$service_script,
+    'n|service_name=s'     => \$service_name,
+    'l|service_label=s'    => \$service_label,
+    'd|description=s'      => \$description,
+    'h|help'          => \my $help,
+);
+
+die <<"EOF" if ( $help || !(defined($service_script) && defined($service_name)) );
+usage: $0 OPTIONS
+
+  $0 -s c:\\path\\to\\script.pl -n my_service
+
+These options are available:
+  -s, --service_script The perl script, which will be executed.
+  -n, --service_name   The service name. 
+  -l, --label          The service label, which will be displayed
+                       in Windows Services. Optional.
+  -d, --description    The service description, which will be displayed
+                       in Windows Services. Optional.
+  -h, --help           Show this message.
+  
+  $0 version 0.01, 2013-06-16 Copyright 2013, Profundus, Hamburg, Germany.
+EOF
+
+my $service_params = file( $service_script ) -> absolute;
+
+die "Can't access to $service_script" 
+    unless ( -r $service_params ); 
+
+my $install_info = {
+    machine     =>  '',
+    name        =>  $service_name,
+    display     =>  $service_label // "$service_name service",
+    path        =>  $^X,
+    user        =>  '',
+    pwd         =>  '',
+    description => $description // "[perl] $service_name service",
+    parameters  => $service_params,
+};
+
+if( Win32::Daemon::CreateService( $install_info ) ) {
+    say "The service $service_name has been installed. ";
+}
+else {
+    say "Failed to add service '$service_name': " 
+        . Win32::FormatMessage( Win32::Daemon::GetLastError() );
+}
+
